@@ -1,0 +1,1404 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>A/B 2인 대전 투석기 게임</title>
+  <style>
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Malgun Gothic", "Apple SD Gothic Neo", Arial, sans-serif;
+      background: #eef3f7;
+      color: #172033;
+    }
+
+    .wrap {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    .simulation-card {
+      position: relative;
+      overflow: hidden;
+      margin-bottom: 16px;
+      border-radius: 10px;
+      background: #fff;
+      box-shadow: 0 4px 18px rgba(15, 23, 42, 0.12);
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 500px;
+    }
+
+    .status-bar {
+      position: absolute;
+      top: 14px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: min(680px, calc(100% - 28px));
+      pointer-events: none;
+      text-align: center;
+    }
+
+    .badge {
+      display: inline-block;
+      max-width: 100%;
+      padding: 9px 18px;
+      border: 1px solid rgba(255, 255, 255, 0.94);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.92);
+      box-shadow: 0 4px 12px rgba(15, 23, 42, 0.13);
+      color: #111827;
+      font-size: 16px;
+      font-weight: 900;
+      line-height: 1.35;
+    }
+
+    .force-end-btn {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      display: grid;
+      width: 30px;
+      height: 30px;
+      place-items: center;
+      border: 1px solid rgba(15, 23, 42, 0.18);
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.92);
+      color: #991b1b;
+      cursor: pointer;
+      font-size: 20px;
+      font-weight: 900;
+      line-height: 1;
+      box-shadow: 0 4px 10px rgba(15, 23, 42, 0.12);
+      z-index: 2;
+    }
+
+    .force-end-btn:hover {
+      background: #fee2e2;
+      border-color: #fecaca;
+    }
+
+    .game-controls {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 300px minmax(0, 1fr);
+      gap: 14px;
+      align-items: stretch;
+    }
+
+    .player-panel,
+    .center-panel {
+      border-radius: 8px;
+      background: #fff;
+      box-shadow: 0 4px 18px rgba(15, 23, 42, 0.09);
+    }
+
+    .player-panel {
+      padding: 18px;
+      border-top: 5px solid #2563eb;
+    }
+
+    .player-panel.player-b {
+      border-top-color: #be123c;
+    }
+
+    .player-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .player-name {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+      font-size: 20px;
+      font-weight: 900;
+    }
+
+    .player-token {
+      display: inline-grid;
+      width: 34px;
+      height: 34px;
+      place-items: center;
+      border-radius: 50%;
+      background: #2563eb;
+      color: #fff;
+      font-size: 20px;
+      font-weight: 900;
+    }
+
+    .player-b .player-token {
+      background: #be123c;
+    }
+
+    .direction-text {
+      color: #64748b;
+      font-size: 12px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .input-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .factor-group {
+      display: flex;
+      min-width: 0;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .factor-label {
+      color: #334155;
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    .factor-input,
+    .target-input {
+      width: 100%;
+      min-width: 0;
+      border: 1.5px solid #cbd5e1;
+      border-radius: 8px;
+      background: #fff;
+      color: #0f172a;
+      font-size: 18px;
+      font-weight: 800;
+      outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+    }
+
+    .factor-input {
+      padding: 10px 11px;
+    }
+
+    .target-input {
+      padding: 11px 12px;
+    }
+
+    .factor-input:focus,
+    .target-input:focus {
+      border-color: #2563eb;
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+    }
+
+    .target-input.invalid {
+      border-color: #dc2626;
+      background: #fff7f7;
+      box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.12);
+    }
+
+    .launch-btn,
+    .start-btn,
+    .restart-btn {
+      width: 100%;
+      border: none;
+      border-radius: 8px;
+      color: #fff;
+      cursor: pointer;
+      font-weight: 900;
+      transition: filter 0.15s, transform 0.1s, opacity 0.15s;
+    }
+
+    .launch-btn {
+      padding: 14px 18px;
+      background: #2563eb;
+      box-shadow: 0 6px 16px rgba(37, 99, 235, 0.28);
+      font-size: 21px;
+    }
+
+    .player-b .launch-btn {
+      background: #be123c;
+      box-shadow: 0 6px 16px rgba(190, 18, 60, 0.25);
+    }
+
+    .start-btn,
+    .restart-btn {
+      padding: 12px 16px;
+      background: #0f766e;
+      font-size: 18px;
+      box-shadow: 0 6px 16px rgba(15, 118, 110, 0.24);
+    }
+
+    .restart-btn {
+      margin-top: 14px;
+      background: #334155;
+      box-shadow: 0 6px 16px rgba(51, 65, 85, 0.22);
+    }
+
+    .launch-btn:hover:not(:disabled),
+    .start-btn:hover:not(:disabled),
+    .restart-btn:hover:not(:disabled) {
+      filter: brightness(1.06);
+      transform: translateY(-1px);
+    }
+
+    .launch-btn:active:not(:disabled),
+    .start-btn:active:not(:disabled),
+    .restart-btn:active:not(:disabled) {
+      transform: translateY(0);
+    }
+
+    .launch-btn:disabled,
+    .start-btn:disabled {
+      cursor: not-allowed;
+      opacity: 0.48;
+      filter: grayscale(0.22);
+      transform: none;
+    }
+
+    .center-panel {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 18px;
+      text-align: center;
+    }
+
+    .target-title {
+      margin-bottom: 8px;
+      color: #172033;
+      font-size: 17px;
+      font-weight: 900;
+    }
+
+    .target-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 112px;
+      gap: 8px;
+      align-items: stretch;
+    }
+
+    .target-hint {
+      margin-top: 8px;
+      color: #64748b;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    @media (max-width: 960px) {
+      .game-controls {
+        grid-template-columns: 1fr;
+      }
+
+      .center-panel {
+        order: -1;
+      }
+
+      canvas {
+        height: 390px;
+      }
+    }
+
+    @media (max-width: 560px) {
+      .wrap {
+        padding: 12px;
+      }
+
+      .input-grid,
+      .target-row {
+        grid-template-columns: 1fr;
+      }
+
+      .player-head {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+    }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="simulation-card">
+    <canvas id="simCanvas" width="1160" height="500"></canvas>
+    <button id="forceEndBtn" class="force-end-btn" type="button" aria-label="게임 종료">×</button>
+    <div class="status-bar">
+      <div class="badge" id="flightStatus">목표값을 입력하고 게임시작을 누르세요</div>
+    </div>
+  </div>
+
+  <div class="game-controls">
+    <section class="player-panel player-a" aria-label="A 조작 패널">
+      <div class="player-head">
+        <div class="player-name"><span class="player-token">A</span> Player A</div>
+        <div class="direction-text">왼쪽에서 오른쪽</div>
+      </div>
+      <div class="input-grid">
+        <label class="factor-group">
+          <span class="factor-label">핀 위치</span>
+          <input id="aX1" class="factor-input" type="number" min="2" max="4" step="0.1" value="2" />
+        </label>
+        <label class="factor-group">
+          <span class="factor-label">후크 위치</span>
+          <input id="aX2" class="factor-input" type="number" min="1" max="5" step="0.1" value="1" />
+        </label>
+        <label class="factor-group">
+          <span class="factor-label">당김각</span>
+          <input id="aX3" class="factor-input" type="number" min="150" max="180" step="1" value="150" />
+        </label>
+      </div>
+      <button id="aLaunchBtn" class="launch-btn" type="button">A 발사</button>
+    </section>
+
+    <section class="center-panel" aria-label="목표값 입력 영역">
+      <label class="target-title" for="targetDistance">목표값</label>
+      <div class="target-row">
+        <input id="targetDistance" class="target-input" type="number" min="910" max="1850" step="1" inputmode="numeric" placeholder="910~1850" />
+        <button id="startBtn" class="start-btn" type="button">게임시작</button>
+      </div>
+      <div class="target-hint">목표값은 910 이상 1850 이하로 입력하세요. 목표값 ±10 이내면 명중입니다.</div>
+      <button id="restartBtn" class="restart-btn hidden" type="button">다시 시작</button>
+    </section>
+
+    <section class="player-panel player-b" aria-label="B 조작 패널">
+      <div class="player-head">
+        <div class="player-name"><span class="player-token">B</span> Player B</div>
+        <div class="direction-text">오른쪽에서 왼쪽</div>
+      </div>
+      <div class="input-grid">
+        <label class="factor-group">
+          <span class="factor-label">핀 위치</span>
+          <input id="bX1" class="factor-input" type="number" min="2" max="4" step="0.1" value="2" />
+        </label>
+        <label class="factor-group">
+          <span class="factor-label">후크 위치</span>
+          <input id="bX2" class="factor-input" type="number" min="1" max="5" step="0.1" value="1" />
+        </label>
+        <label class="factor-group">
+          <span class="factor-label">당김각</span>
+          <input id="bX3" class="factor-input" type="number" min="150" max="180" step="1" value="150" />
+        </label>
+      </div>
+      <button id="bLaunchBtn" class="launch-btn" type="button">B 발사</button>
+    </section>
+  </div>
+</div>
+
+<script>
+  const canvas = document.getElementById("simCanvas");
+  const ctx = canvas.getContext("2d");
+
+  const targetDistanceInput = document.getElementById("targetDistance");
+  const startBtn = document.getElementById("startBtn");
+  const restartBtn = document.getElementById("restartBtn");
+  const forceEndBtn = document.getElementById("forceEndBtn");
+  const flightStatus = document.getElementById("flightStatus");
+
+  const HIT_TOLERANCE = 10;
+  const TARGET_MIN = 910;
+  const TARGET_MAX = 1850;
+  const SCALE_AT_MIN_TARGET = 1.33;
+  const SCALE_AT_MAX_TARGET = 0.5;
+
+  const CATAPULT = {
+    baseScale: 0.32,
+    startAngle: 60,
+    releaseAngle: -28,
+    settleAngle: -16,
+    pivotOffsetX: 95,
+    pivotOffsetY: -158,
+    frontArmLength: 126,
+    backArmLength: 46
+  };
+
+  const DISTANCE_AXIS = {
+    minDistance: 0
+  };
+
+  const players = {
+    A: {
+      id: "A",
+      direction: 1,
+      color: "#2563eb",
+      inputs: {
+        x1: document.getElementById("aX1"),
+        x2: document.getElementById("aX2"),
+        x3: document.getElementById("aX3")
+      },
+      button: document.getElementById("aLaunchBtn")
+    },
+    B: {
+      id: "B",
+      direction: -1,
+      color: "#be123c",
+      inputs: {
+        x1: document.getElementById("bX1"),
+        x2: document.getElementById("bX2"),
+        x3: document.getElementById("bX3")
+      },
+      button: document.getElementById("bLaunchBtn")
+    }
+  };
+
+  const game = {
+    started: false,
+    ended: false,
+    animating: false,
+    targetDistance: null,
+    shots: { A: false, B: false },
+    firstShooter: null,
+    armAngles: { A: CATAPULT.startAngle, B: CATAPULT.startAngle },
+    loaded: { A: true, B: true },
+    trajectory: [],
+    activeStone: null,
+    landingMarker: null,
+    explosion: null,
+    results: { A: null, B: null },
+    scaleMultiplier: 1
+  };
+
+  let animationId = null;
+
+  function randExcel() {
+    return Math.random();
+  }
+
+  function clamp(v, mn, mx) {
+    return Math.min(Math.max(v, mn), mx);
+  }
+
+  function easeOutCubic(t) {
+    return 1 - Math.pow(1 - t, 3);
+  }
+
+  function easeInOutCubic(t) {
+    return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+  }
+
+  function opponentOf(playerId) {
+    return playerId === "A" ? "B" : "A";
+  }
+
+  function setStatus(message) {
+    flightStatus.textContent = message;
+  }
+
+  function getPlayerInput(playerId) {
+    const input = players[playerId].inputs;
+    const x1 = Number(input.x1.value);
+    const x2 = Number(input.x2.value);
+    const x3 = Number(input.x3.value);
+    const clean = {
+      x1: Number(clamp(Number.isFinite(x1) ? x1 : 2, 2, 4).toFixed(1)),
+      x2: Number(clamp(Number.isFinite(x2) ? x2 : 1, 1, 5).toFixed(1)),
+      x3: Math.round(clamp(Number.isFinite(x3) ? x3 : 150, 150, 180))
+    };
+    input.x1.value = clean.x1.toFixed(1);
+    input.x2.value = clean.x2.toFixed(1);
+    input.x3.value = clean.x3.toFixed(0);
+    return clean;
+  }
+
+  function normInv(probability, mean = 0, standardDeviation = 1) {
+    const p = clamp(probability, 1e-12, 1 - 1e-12);
+    const a = [-3.969683028665376e+01, 2.209460984245205e+02, -2.759285104469687e+02, 1.383577518672690e+02, -3.066479806614716e+01, 2.506628277459239e+00];
+    const b = [-5.447609879822406e+01, 1.615858368580409e+02, -1.556989798598866e+02, 6.680131188771972e+01, -1.328068155288572e+01];
+    const c = [-7.784894002430293e-03, -3.223964580411365e-01, -2.400758277161838e+00, -2.549732539343734e+00, 4.374664141464968e+00, 2.938163982698783e+00];
+    const d = [7.784695709041462e-03, 3.224671290700398e-01, 2.445134137142996e+00, 3.754408661907416e+00];
+    const plow = 0.02425;
+    const phigh = 1 - plow;
+    let z;
+
+    if (p < plow) {
+      const q = Math.sqrt(-2 * Math.log(p));
+      z = (((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5]) /
+          ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1);
+    } else if (p <= phigh) {
+      const q = p - 0.5;
+      const r = q * q;
+      z = (((((a[0] * r + a[1]) * r + a[2]) * r + a[3]) * r + a[4]) * r + a[5]) * q /
+          (((((b[0] * r + b[1]) * r + b[2]) * r + b[3]) * r + b[4]) * r + 1);
+    } else {
+      const q = Math.sqrt(-2 * Math.log(1 - p));
+      z = -(((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5]) /
+          ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1);
+    }
+    return mean + standardDeviation * z;
+  }
+
+  function calculateDistance(x1, x2, x3) {
+    const x1p = x1 + 0.05 * normInv(randExcel(), 0, 0.2);
+    const x2p = x2 + 0.1 * normInv(randExcel(), 0, 0.2);
+    const x3p = x3 + 0.5 * normInv(randExcel(), 0, 0.2);
+    const y = 5 * x1p + 3.5 * x2p + 2 * x3p + 2 * x1p * x3p;
+    return { x1p, x2p, x3p, y };
+  }
+
+  function getTargetProgress(target = game.targetDistance) {
+    if (!Number.isFinite(target)) return 0;
+    return clamp((target - TARGET_MIN) / (TARGET_MAX - TARGET_MIN), 0, 1);
+  }
+
+  function getScaleMultiplierForTarget(target) {
+    const t = getTargetProgress(target);
+    return SCALE_AT_MIN_TARGET + (SCALE_AT_MAX_TARGET - SCALE_AT_MIN_TARGET) * t;
+  }
+
+  function getCatapultScale() {
+    return CATAPULT.baseScale * game.scaleMultiplier;
+  }
+
+  function getLayout(w = canvas.width) {
+    if (!game.started && !game.ended) {
+      return { A: 52, B: w - 52 };
+    }
+    if (!Number.isFinite(game.targetDistance)) {
+      return { A: 52, B: w - 52 };
+    }
+
+    const t = getTargetProgress();
+    const margin = 142 + (52 - 142) * t;
+    return { A: margin, B: w - margin };
+  }
+
+  function getBaseX(playerId, w = canvas.width) {
+    return getLayout(w)[playerId];
+  }
+
+  function getLocalCupPosition(armAngleDeg) {
+    const rad = armAngleDeg * Math.PI / 180;
+    return {
+      x: CATAPULT.pivotOffsetX - Math.cos(rad) * CATAPULT.frontArmLength,
+      y: CATAPULT.pivotOffsetY + Math.sin(rad) * CATAPULT.frontArmLength
+    };
+  }
+
+  function getCupPosition(playerId, groundY, armAngleDeg, w = canvas.width) {
+    const player = players[playerId];
+    const local = getLocalCupPosition(armAngleDeg);
+    const scale = getCatapultScale();
+    return {
+      x: getBaseX(playerId, w) + player.direction * local.x * scale,
+      y: groundY + local.y * scale
+    };
+  }
+
+  function getBodyCenter(playerId, groundY, w = canvas.width) {
+    const player = players[playerId];
+    const scale = getCatapultScale();
+    return {
+      x: getBaseX(playerId, w) + player.direction * 92 * scale,
+      y: groundY - 92 * scale
+    };
+  }
+
+  function getDistanceAxisRange(playerId, w, groundY) {
+    const releasePos = getCupPosition(playerId, groundY, CATAPULT.releaseAngle, w);
+    const opponentCenter = getBodyCenter(opponentOf(playerId), groundY, w);
+    const xEnd = opponentCenter.x;
+    return { xZero: releasePos.x, xEnd };
+  }
+
+  function distanceToX(distance, playerId, w, groundY) {
+    const { xZero, xEnd } = getDistanceAxisRange(playerId, w, groundY);
+    const target = Number.isFinite(game.targetDistance) ? game.targetDistance : TARGET_MAX;
+    const ratio = (distance - DISTANCE_AXIS.minDistance) / (target - DISTANCE_AXIS.minDistance);
+    return xZero + (xEnd - xZero) * ratio;
+  }
+
+  function getOpponentBackX(playerId, groundY, w) {
+    const opponentId = opponentOf(playerId);
+    const opponent = players[opponentId];
+    const scale = getCatapultScale();
+    return getBaseX(opponentId, w) - opponent.direction * 10 * scale;
+  }
+
+  function hasOvershotOpponent(playerId, projectedX, groundY, w) {
+    const backX = getOpponentBackX(playerId, groundY, w);
+    return playerId === "A" ? projectedX > backX : projectedX < backX;
+  }
+
+  function updateLaunchButtons() {
+    const locked = !game.started || game.ended || game.animating;
+
+    Object.keys(players).forEach(playerId => {
+      players[playerId].button.disabled = locked || game.shots[playerId];
+    });
+
+    if (!locked && game.shots.A !== game.shots.B) {
+      const waitingPlayer = game.shots.A ? "B" : "A";
+      players.A.button.disabled = waitingPlayer !== "A";
+      players.B.button.disabled = waitingPlayer !== "B";
+    }
+  }
+
+  function validateTarget() {
+    const value = Number(targetDistanceInput.value);
+    const valid = Number.isFinite(value) && value >= TARGET_MIN && value <= TARGET_MAX;
+    targetDistanceInput.classList.toggle("invalid", !valid);
+    return valid ? value : null;
+  }
+
+  function startGame() {
+    const target = validateTarget();
+    if (target === null) {
+      setStatus("목표값은 910 이상 1850 이하로 입력하세요.");
+      targetDistanceInput.focus();
+      return;
+    }
+
+    game.started = true;
+    game.ended = false;
+    game.animating = false;
+    game.targetDistance = target;
+    game.shots = { A: false, B: false };
+    game.firstShooter = null;
+    game.armAngles = { A: CATAPULT.startAngle, B: CATAPULT.startAngle };
+    game.loaded = { A: true, B: true };
+    game.trajectory = [];
+    game.activeStone = null;
+    game.landingMarker = null;
+    game.explosion = null;
+    game.results = { A: null, B: null };
+    game.scaleMultiplier = getScaleMultiplierForTarget(target);
+
+    targetDistanceInput.value = target.toString();
+    targetDistanceInput.disabled = true;
+    startBtn.disabled = true;
+    restartBtn.classList.add("hidden");
+    setStatus("A와 B 모두 발사할 수 있습니다");
+    updateLaunchButtons();
+    drawScene();
+  }
+
+  function resetGame() {
+    if (animationId) {
+      cancelAnimationFrame(animationId);
+      animationId = null;
+    }
+
+    game.started = false;
+    game.ended = false;
+    game.animating = false;
+    game.targetDistance = null;
+    game.shots = { A: false, B: false };
+    game.firstShooter = null;
+    game.armAngles = { A: CATAPULT.startAngle, B: CATAPULT.startAngle };
+    game.loaded = { A: true, B: true };
+    game.trajectory = [];
+    game.activeStone = null;
+    game.landingMarker = null;
+    game.explosion = null;
+    game.results = { A: null, B: null };
+    game.scaleMultiplier = 1;
+
+    targetDistanceInput.value = "";
+    targetDistanceInput.disabled = false;
+    targetDistanceInput.classList.remove("invalid");
+    startBtn.disabled = false;
+    restartBtn.classList.add("hidden");
+    setStatus("목표값을 입력하고 게임시작을 누르세요");
+    updateLaunchButtons();
+    drawScene();
+  }
+
+  function forceEndGame() {
+    if (animationId) {
+      cancelAnimationFrame(animationId);
+      animationId = null;
+    }
+
+    game.started = false;
+    game.ended = true;
+    game.animating = false;
+    game.activeStone = null;
+    game.explosion = null;
+    game.results = { A: null, B: null };
+
+    targetDistanceInput.disabled = true;
+    startBtn.disabled = true;
+    restartBtn.classList.remove("hidden");
+    setStatus("게임이 종료되었습니다.");
+    updateLaunchButtons();
+    drawScene();
+  }
+
+  function prepareNextRound() {
+    game.shots = { A: false, B: false };
+    game.firstShooter = null;
+    game.loaded = { A: true, B: true };
+    game.armAngles = { A: CATAPULT.startAngle, B: CATAPULT.startAngle };
+    updateLaunchButtons();
+    drawScene();
+  }
+
+  function canLaunch(playerId) {
+    return game.started && !game.ended && !game.animating && !game.shots[playerId];
+  }
+
+  function handleLaunch(playerId) {
+    if (!canLaunch(playerId)) return;
+
+    const input = getPlayerInput(playerId);
+    const calc = calculateDistance(input.x1, input.x2, input.x3);
+    const roundedDistance = Math.max(0, Math.round(calc.y));
+
+    game.animating = true;
+    game.shots[playerId] = true;
+    game.firstShooter = game.firstShooter || playerId;
+    updateLaunchButtons();
+
+    animateLaunch(playerId, roundedDistance, () => {
+      game.animating = false;
+      resolveLaunch(playerId, roundedDistance);
+    });
+  }
+
+  function resolveLaunch(playerId, distance) {
+    const hit = Math.abs(distance - game.targetDistance) <= HIT_TOLERANCE;
+
+    if (hit) {
+      finishGame(playerId);
+      return;
+    }
+
+    const opponent = opponentOf(playerId);
+    if (!game.shots[opponent]) {
+      setStatus(`${playerId} 실패, ${opponent} 차례`);
+      updateLaunchButtons();
+      drawScene();
+      return;
+    }
+
+    setStatus("두 사람 모두 실패, 다음 라운드");
+    prepareNextRound();
+  }
+
+  function finishGame(winnerId) {
+    const loserId = opponentOf(winnerId);
+    game.ended = true;
+    game.results = {
+      A: winnerId === "A" ? "Win" : "Lose",
+      B: winnerId === "B" ? "Win" : "Lose"
+    };
+    setStatus("명중!");
+    restartBtn.classList.remove("hidden");
+    updateLaunchButtons();
+    startExplosion(loserId);
+  }
+
+  function startExplosion(playerId) {
+    const particles = Array.from({ length: 34 }, (_, i) => {
+      const angle = (Math.PI * 2 * i) / 34;
+      const speed = 18 + Math.random() * 44;
+      return {
+        angle,
+        speed,
+        radius: 3 + Math.random() * 5,
+        color: i % 3 === 0 ? "#f97316" : i % 3 === 1 ? "#facc15" : "#7f1d1d"
+      };
+    });
+
+    game.explosion = {
+      playerId,
+      startedAt: performance.now(),
+      duration: 1100,
+      particles,
+      progress: 0
+    };
+
+    function frame(now) {
+      if (!game.explosion) return;
+      game.explosion.progress = clamp((now - game.explosion.startedAt) / game.explosion.duration, 0, 1);
+      drawScene();
+      if (game.explosion.progress < 1) {
+        animationId = requestAnimationFrame(frame);
+      } else {
+        animationId = null;
+      }
+    }
+
+    animationId = requestAnimationFrame(frame);
+  }
+
+  function drawScene() {
+    const w = canvas.width;
+    const h = canvas.height;
+    const groundY = h * 0.72;
+
+    ctx.clearRect(0, 0, w, h);
+    drawBackground(w, h, groundY);
+
+    drawCatapult("A", groundY, game.armAngles.A, game.loaded.A);
+    drawCatapult("B", groundY, game.armAngles.B, game.loaded.B);
+    drawPlayerLabels(groundY, w);
+
+    if (game.trajectory.length > 1) {
+      ctx.save();
+      ctx.beginPath();
+      game.trajectory.forEach((p, i) => {
+        if (i === 0) ctx.moveTo(p.x, p.y);
+        else ctx.lineTo(p.x, p.y);
+      });
+      ctx.strokeStyle = "rgba(220, 38, 38, 0.58)";
+      ctx.lineWidth = 3;
+      ctx.setLineDash([7, 7]);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    if (game.activeStone) {
+      drawStone(game.activeStone.x, game.activeStone.y, game.activeStone.r);
+    }
+
+    if (game.landingMarker) {
+      if (game.landingMarker.overshot) {
+        drawDistanceLabelNearTrajectory(game.landingMarker.x, game.landingMarker.y, game.landingMarker.distance);
+      } else {
+        drawLandingMarker(game.landingMarker.x, groundY, game.landingMarker.distance);
+      }
+    }
+
+    if (game.explosion) {
+      drawExplosion(game.explosion, groundY, w);
+    }
+
+    drawResultLabels(groundY, w);
+  }
+
+  function drawBackground(w, h, groundY) {
+    const sky = ctx.createLinearGradient(0, 0, 0, groundY);
+    sky.addColorStop(0, "#b9e4ff");
+    sky.addColorStop(0.58, "#eaf7ff");
+    sky.addColorStop(1, "#f7fcff");
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, w, groundY);
+
+    const sun = ctx.createRadialGradient(w - 94, 78, 10, w - 94, 78, 42);
+    sun.addColorStop(0, "rgba(255, 235, 130, 0.96)");
+    sun.addColorStop(1, "rgba(255, 235, 130, 0)");
+    ctx.fillStyle = sun;
+    ctx.beginPath();
+    ctx.arc(w - 94, 78, 42, 0, Math.PI * 2);
+    ctx.fill();
+
+    drawCloud(95, 88, 1.0);
+    drawCloud(360, 116, 0.75);
+    drawCloud(710, 98, 0.9);
+
+    ctx.fillStyle = "#cfe3b8";
+    ctx.beginPath();
+    ctx.moveTo(0, groundY);
+    ctx.lineTo(80, groundY - 36);
+    ctx.lineTo(210, groundY - 14);
+    ctx.lineTo(330, groundY - 54);
+    ctx.lineTo(490, groundY - 10);
+    ctx.lineTo(655, groundY - 48);
+    ctx.lineTo(825, groundY - 12);
+    ctx.lineTo(980, groundY - 52);
+    ctx.lineTo(w, groundY - 18);
+    ctx.lineTo(w, groundY);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = "#b8d19f";
+    ctx.beginPath();
+    ctx.moveTo(0, groundY);
+    ctx.lineTo(150, groundY - 18);
+    ctx.lineTo(330, groundY - 2);
+    ctx.lineTo(485, groundY - 26);
+    ctx.lineTo(670, groundY - 5);
+    ctx.lineTo(855, groundY - 24);
+    ctx.lineTo(w, groundY - 8);
+    ctx.lineTo(w, groundY);
+    ctx.closePath();
+    ctx.fill();
+
+    const ground = ctx.createLinearGradient(0, groundY, 0, h);
+    ground.addColorStop(0, "#d8c2a0");
+    ground.addColorStop(0.42, "#c39b69");
+    ground.addColorStop(1, "#8c633b");
+    ctx.fillStyle = ground;
+    ctx.fillRect(0, groundY, w, h - groundY);
+
+    ctx.strokeStyle = "rgba(90, 64, 38, 0.35)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, groundY + 1);
+    ctx.lineTo(w, groundY + 1);
+    ctx.stroke();
+
+    ctx.fillStyle = "rgba(0, 0, 0, 0.05)";
+    ctx.fillRect(0, groundY + 20, w, 8);
+
+    drawCopyrightNotice(w, h, groundY);
+  }
+
+  function drawCopyrightNotice(w, h, groundY) {
+    const x = w - 22;
+    const firstLineY = Math.max(groundY + 72, h - 38);
+    const secondLineY = firstLineY + 18;
+
+    ctx.save();
+    ctx.textAlign = "right";
+    ctx.textBaseline = "alphabetic";
+    ctx.fillStyle = "rgba(17, 24, 39, 0.82)";
+    ctx.font = "bold 12px Malgun Gothic, Arial";
+    ctx.fillText("Copyright 2026. Unirone Co. All rights reserved.", x, firstLineY);
+    ctx.font = "11px Malgun Gothic, Arial";
+    ctx.fillText("본 투석기 시뮬레이션의 기획, 디자인, 코드 및 콘텐츠에 대한 저작권은 Unirone 컨설팅에 있으며, 무단 복제, 수정, 배포, 상업적 이용을 금합니다.", x, secondLineY);
+    ctx.restore();
+  }
+
+  function drawCloud(x, y, scale) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(scale, scale);
+    ctx.fillStyle = "rgba(255, 255, 255, 0.86)";
+    ctx.beginPath();
+    ctx.arc(0, 12, 20, 0, Math.PI * 2);
+    ctx.arc(24, 0, 27, 0, Math.PI * 2);
+    ctx.arc(55, 10, 22, 0, Math.PI * 2);
+    ctx.arc(31, 18, 24, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawCatapult(playerId, groundY, armAngleDeg, showLoadedStone) {
+    const player = players[playerId];
+    const scale = getCatapultScale();
+    ctx.save();
+    ctx.translate(getBaseX(playerId), groundY);
+    ctx.scale(player.direction * scale, scale);
+
+    ctx.fillStyle = "rgba(0, 0, 0, 0.17)";
+    ctx.beginPath();
+    ctx.ellipse(92, -12, 98, 20, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    drawWoodBeam(8, -60, 168, 18, 4);
+    drawWoodBeam(4, -42, 176, 18, 4);
+    drawWheel(36, -18, 20);
+    drawWheel(148, -18, 20);
+
+    drawFrameLeg(58, -60, 82, -150, 12);
+    drawFrameLeg(132, -60, 108, -150, 12);
+    drawFrameLeg(114, -60, 89, -150, 11);
+    drawWoodBeam(72, -162, 46, 18, 3);
+    drawWinch(155, -58);
+    drawArm(armAngleDeg, showLoadedStone);
+
+    const hub = ctx.createRadialGradient(CATAPULT.pivotOffsetX - 2, CATAPULT.pivotOffsetY - 2, 1, CATAPULT.pivotOffsetX, CATAPULT.pivotOffsetY, 13);
+    hub.addColorStop(0, "#dfe5ec");
+    hub.addColorStop(0.6, "#9aa3ae");
+    hub.addColorStop(1, "#4b5563");
+    ctx.fillStyle = hub;
+    ctx.strokeStyle = "#202936";
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.arc(CATAPULT.pivotOffsetX, CATAPULT.pivotOffsetY, 11, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = "#202936";
+    ctx.beginPath();
+    ctx.arc(CATAPULT.pivotOffsetX, CATAPULT.pivotOffsetY, 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawWoodBeam(x, y, width, height, radius) {
+    const g = ctx.createLinearGradient(0, y, 0, y + height);
+    g.addColorStop(0, "#a06f3f");
+    g.addColorStop(0.55, "#7c5028");
+    g.addColorStop(1, "#5a3618");
+    ctx.fillStyle = g;
+    ctx.strokeStyle = "#3a2210";
+    ctx.lineWidth = 2;
+    roundRect(ctx, x, y, width, height, radius);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.strokeStyle = "rgba(58, 30, 12, 0.35)";
+    ctx.lineWidth = 1;
+    for (let i = 1; i <= 2; i++) {
+      ctx.beginPath();
+      ctx.moveTo(x + 8, y + i * height / 3);
+      ctx.lineTo(x + width - 8, y + i * height / 3);
+      ctx.stroke();
+    }
+  }
+
+  function drawFrameLeg(x1, y1, x2, y2, thickness) {
+    ctx.save();
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    const len = Math.hypot(dx, dy);
+    const nx = -dy / len * thickness / 2;
+    const ny = dx / len * thickness / 2;
+    const grad = ctx.createLinearGradient(x1 - nx, y1 - ny, x1 + nx, y1 + ny);
+    grad.addColorStop(0, "#a06f3f");
+    grad.addColorStop(0.5, "#8b5a2e");
+    grad.addColorStop(1, "#5d3a1c");
+    ctx.fillStyle = grad;
+    ctx.strokeStyle = "#3a2210";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(x1 - nx, y1 - ny);
+    ctx.lineTo(x1 + nx, y1 + ny);
+    ctx.lineTo(x2 + nx * 0.85, y2 + ny * 0.85);
+    ctx.lineTo(x2 - nx * 0.85, y2 - ny * 0.85);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawWinch(cx, cy) {
+    const drumGrad = ctx.createLinearGradient(cx - 12, cy, cx + 12, cy);
+    drumGrad.addColorStop(0, "#7c5028");
+    drumGrad.addColorStop(0.5, "#a87340");
+    drumGrad.addColorStop(1, "#6b4322");
+    ctx.fillStyle = drumGrad;
+    ctx.strokeStyle = "#3a2210";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, 14, 7, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.strokeStyle = "#c9a777";
+    ctx.lineWidth = 2;
+    for (let i = -5; i <= 5; i += 2) {
+      ctx.beginPath();
+      ctx.ellipse(cx, cy + i * 0.6, 13, 5.5, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    drawWoodBeam(cx - 28, cy - 3, 18, 6, 2);
+  }
+
+  function drawWheel(x, y, r) {
+    const wheelGrad = ctx.createRadialGradient(x - r / 3, y - r / 3, r * 0.2, x, y, r);
+    wheelGrad.addColorStop(0, "#a06f3f");
+    wheelGrad.addColorStop(0.62, "#7c5028");
+    wheelGrad.addColorStop(1, "#4a2d12");
+    ctx.fillStyle = wheelGrad;
+    ctx.strokeStyle = "#2a1808";
+    ctx.lineWidth = 2.2;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    const hubGrad = ctx.createRadialGradient(x - 2, y - 2, 1, x, y, r * 0.36);
+    hubGrad.addColorStop(0, "#9aa3ae");
+    hubGrad.addColorStop(1, "#3f464f");
+    ctx.fillStyle = hubGrad;
+    ctx.strokeStyle = "#1f242b";
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.arc(x, y, r * 0.36, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+  }
+
+  function drawArm(armAngleDeg, showLoadedStone) {
+    const localPivot = { x: CATAPULT.pivotOffsetX, y: CATAPULT.pivotOffsetY };
+    const rad = armAngleDeg * Math.PI / 180;
+    const frontX = localPivot.x - Math.cos(rad) * CATAPULT.frontArmLength;
+    const frontY = localPivot.y + Math.sin(rad) * CATAPULT.frontArmLength;
+    const backX = localPivot.x + Math.cos(rad) * CATAPULT.backArmLength;
+    const backY = localPivot.y - Math.sin(rad) * CATAPULT.backArmLength;
+
+    const armGrad = ctx.createLinearGradient(backX, backY, frontX, frontY);
+    armGrad.addColorStop(0, "#7c5028");
+    armGrad.addColorStop(0.5, "#a87340");
+    armGrad.addColorStop(1, "#6b4322");
+    ctx.strokeStyle = armGrad;
+    ctx.lineWidth = 16;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(backX, backY);
+    ctx.lineTo(frontX, frontY);
+    ctx.stroke();
+
+    ctx.strokeStyle = "#3a2210";
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.moveTo(backX, backY - 7);
+    ctx.lineTo(frontX, frontY - 7);
+    ctx.moveTo(backX, backY + 7);
+    ctx.lineTo(frontX, frontY + 7);
+    ctx.stroke();
+
+    ctx.save();
+    ctx.translate(frontX, frontY);
+    ctx.rotate(rad * 0.38);
+    ctx.translate(8, 0);
+
+    const bowlGrad = ctx.createLinearGradient(0, -30, 0, 12);
+    bowlGrad.addColorStop(0, "#a06f3f");
+    bowlGrad.addColorStop(0.5, "#7c5028");
+    bowlGrad.addColorStop(1, "#4a2d12");
+    ctx.fillStyle = bowlGrad;
+    ctx.strokeStyle = "#2a1808";
+    ctx.lineWidth = 2.4;
+    ctx.beginPath();
+    ctx.moveTo(-26, -28);
+    ctx.bezierCurveTo(-30, 2, -16, 12, 0, 12);
+    ctx.bezierCurveTo(16, 12, 30, 2, 26, -28);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    if (showLoadedStone) {
+      drawStone(0, -18, 18);
+    }
+
+    ctx.fillStyle = "#2a1808";
+    ctx.beginPath();
+    ctx.ellipse(0, -28, 26, 7, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawStone(x, y, r) {
+    const grad = ctx.createRadialGradient(x - r / 3, y - r / 3, 2, x, y, r);
+    grad.addColorStop(0, "#b4bcc7");
+    grad.addColorStop(0.45, "#818b97");
+    grad.addColorStop(1, "#3f4a56");
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(17, 24, 39, 0.45)";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+
+  function animateLaunch(playerId, distance, onComplete) {
+    if (animationId) cancelAnimationFrame(animationId);
+
+    const w = canvas.width;
+    const h = canvas.height;
+    const groundY = h * 0.72;
+    const setupDuration = 620;
+    const flightDuration = 1260;
+    const startTime = performance.now();
+    const releasePos = getCupPosition(playerId, groundY, CATAPULT.releaseAngle, w);
+    const projectedX = distanceToX(distance, playerId, w, groundY);
+    const overshot = hasOvershotOpponent(playerId, projectedX, groundY, w);
+    const endX = clamp(projectedX, 24, w - 24);
+    const end = { x: endX, y: groundY - 14 };
+    const naturalPeakHeight = 105 + Math.min(110, distance / 13);
+    const availablePeakHeight = Math.max(72, releasePos.y - 30);
+    const peakHeight = Math.min(naturalPeakHeight, availablePeakHeight);
+
+    game.trajectory = [];
+    game.activeStone = null;
+    game.landingMarker = null;
+    game.loaded[playerId] = true;
+
+    function frame(now) {
+      const elapsed = now - startTime;
+      if (elapsed <= setupDuration) {
+        const t = clamp(elapsed / setupDuration, 0, 1);
+        game.armAngles[playerId] = CATAPULT.startAngle + (CATAPULT.releaseAngle - CATAPULT.startAngle) * easeInOutCubic(t);
+        setStatus("발사 준비");
+        drawScene();
+        animationId = requestAnimationFrame(frame);
+        return;
+      }
+
+      const flyElapsed = elapsed - setupDuration;
+      const t = clamp(flyElapsed / flightDuration, 0, 1);
+      const ease = easeOutCubic(t);
+      const x = releasePos.x + (end.x - releasePos.x) * ease;
+      const linearY = releasePos.y + (end.y - releasePos.y) * ease;
+      const y = linearY - Math.sin(Math.PI * ease) * peakHeight;
+      const settle = clamp(flyElapsed / 340, 0, 1);
+
+      game.armAngles[playerId] = CATAPULT.releaseAngle + (CATAPULT.settleAngle - CATAPULT.releaseAngle) * easeOutCubic(settle);
+      game.loaded[playerId] = false;
+      game.activeStone = { x, y, r: 7 };
+      if (game.trajectory.length === 0 || Math.abs(game.trajectory[game.trajectory.length - 1].x - x) > 6) {
+        game.trajectory.push({ x, y });
+      }
+
+      setStatus(t < 1 ? "비행 중" : "착지 완료");
+      if (t >= 1) {
+        game.activeStone = null;
+        game.landingMarker = { playerId, x: end.x, y: end.y, distance, overshot };
+      }
+      drawScene();
+
+      if (t < 1) {
+        animationId = requestAnimationFrame(frame);
+      } else {
+        animationId = null;
+        if (typeof onComplete === "function") onComplete();
+      }
+    }
+
+    animationId = requestAnimationFrame(frame);
+  }
+
+  function drawLandingMarker(x, groundY, distance) {
+    ctx.save();
+    ctx.strokeStyle = "#dc2626";
+    ctx.fillStyle = "#dc2626";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(x, groundY - 36);
+    ctx.lineTo(x, groundY + 8);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(x, groundY - 36, 6, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = "rgba(255, 255, 255, 0.92)";
+    roundRect(ctx, x - 66, groundY - 78, 132, 32, 10);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(220, 38, 38, 0.35)";
+    ctx.stroke();
+
+    ctx.fillStyle = "#991b1b";
+    ctx.font = "bold 14px Malgun Gothic, Arial";
+    ctx.textAlign = "center";
+    ctx.fillText(`비거리 ${Math.round(distance)}`, x, groundY - 57);
+    ctx.restore();
+  }
+
+  function drawDistanceLabelNearTrajectory(x, y, distance) {
+    const labelX = clamp(x, 72, canvas.width - 72);
+    const labelY = clamp(y - 46, 46, canvas.height * 0.72 - 20);
+
+    ctx.save();
+    ctx.fillStyle = "rgba(255, 255, 255, 0.94)";
+    roundRect(ctx, labelX - 66, labelY - 17, 132, 32, 10);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(220, 38, 38, 0.28)";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    ctx.fillStyle = "#991b1b";
+    ctx.font = "bold 14px Malgun Gothic, Arial";
+    ctx.textAlign = "center";
+    ctx.fillText(`비거리 ${Math.round(distance)}`, labelX, labelY + 4);
+    ctx.restore();
+  }
+
+  function drawExplosion(explosion, groundY, w) {
+    const center = getBodyCenter(explosion.playerId, groundY, w);
+    const p = explosion.progress;
+    const flameRadius = 18 + 44 * Math.sin(Math.PI * Math.min(p, 0.9));
+
+    ctx.save();
+    const fire = ctx.createRadialGradient(center.x, center.y, 4, center.x, center.y, Math.max(24, flameRadius));
+    fire.addColorStop(0, "rgba(255, 255, 255, 0.96)");
+    fire.addColorStop(0.25, "rgba(250, 204, 21, 0.92)");
+    fire.addColorStop(0.62, "rgba(249, 115, 22, 0.72)");
+    fire.addColorStop(1, "rgba(127, 29, 29, 0)");
+    ctx.fillStyle = fire;
+    ctx.beginPath();
+    ctx.arc(center.x, center.y, Math.max(20, flameRadius), 0, Math.PI * 2);
+    ctx.fill();
+
+    explosion.particles.forEach((particle, i) => {
+      const travel = particle.speed * easeOutCubic(p);
+      const x = center.x + Math.cos(particle.angle) * travel;
+      const y = center.y + Math.sin(particle.angle) * travel - 12 * p;
+      ctx.globalAlpha = Math.max(0, 1 - p * 0.78);
+      ctx.fillStyle = particle.color;
+      ctx.beginPath();
+      ctx.arc(x, y, particle.radius, 0, Math.PI * 2);
+      ctx.fill();
+
+      if (i % 4 === 0) {
+        ctx.globalAlpha = Math.max(0.16, p * 0.55);
+        ctx.fillStyle = "rgba(75, 85, 99, 0.58)";
+        ctx.beginPath();
+        ctx.arc(x * 0.45 + center.x * 0.55, y * 0.45 + center.y * 0.55 - 20 * p, particle.radius + 12 * p, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    });
+
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = "#b91c1c";
+    ctx.font = "bold 30px Malgun Gothic, Arial";
+    ctx.textAlign = "center";
+    ctx.lineWidth = 5;
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.92)";
+    ctx.strokeText("명중", center.x, center.y - 62);
+    ctx.fillText("명중", center.x, center.y - 62);
+    ctx.restore();
+  }
+
+  function drawPlayerLabels(groundY, w) {
+    ["A", "B"].forEach(playerId => {
+      const center = getBodyCenter(playerId, groundY, w);
+      ctx.save();
+      ctx.fillStyle = players[playerId].color;
+      ctx.font = "bold 18px Malgun Gothic, Arial";
+      ctx.textAlign = "center";
+      ctx.fillText(playerId, center.x, groundY - 88);
+      ctx.restore();
+    });
+  }
+
+  function drawResultLabels(groundY, w) {
+    if (!game.results.A && !game.results.B) return;
+
+    ["A", "B"].forEach(playerId => {
+      const result = game.results[playerId];
+      if (!result) return;
+      const center = getBodyCenter(playerId, groundY, w);
+      const isWin = result === "Win";
+
+      ctx.save();
+      ctx.font = "bold 34px Malgun Gothic, Arial";
+      ctx.textAlign = "center";
+      ctx.lineWidth = 6;
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.92)";
+      ctx.fillStyle = isWin ? "#15803d" : "#b91c1c";
+      ctx.strokeText(`${playerId}: ${result}`, center.x, groundY - 126);
+      ctx.fillText(`${playerId}: ${result}`, center.x, groundY - 126);
+      ctx.restore();
+    });
+  }
+
+  function roundRect(ctx, x, y, width, height, radius) {
+    const r = Math.min(radius, width / 2, height / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + width - r, y);
+    ctx.quadraticCurveTo(x + width, y, x + width, y + r);
+    ctx.lineTo(x + width, y + height - r);
+    ctx.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
+    ctx.lineTo(x + r, y + height);
+    ctx.quadraticCurveTo(x, y + height, x, y + height - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+  }
+
+  startBtn.addEventListener("click", startGame);
+  restartBtn.addEventListener("click", resetGame);
+  forceEndBtn.addEventListener("click", forceEndGame);
+  targetDistanceInput.addEventListener("input", () => targetDistanceInput.classList.remove("invalid"));
+  players.A.button.addEventListener("click", () => handleLaunch("A"));
+  players.B.button.addEventListener("click", () => handleLaunch("B"));
+
+  updateLaunchButtons();
+  drawScene();
+</script>
+</body>
+</html>
